@@ -1,0 +1,9 @@
+[Unit]
+Description=EX-TERM-IN-ATE
+
+[Service]
+Type=simple
+ExecStart=/home/pi/halloweendalek/dalek.py
+
+[Install]
+WantedBy=multi-user.target
