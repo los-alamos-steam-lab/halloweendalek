@@ -2,16 +2,20 @@
 
 import datetime
 import gpiozero
-#from gpiozero import Button
 import os
 import random
 import time
 import subprocess
+import sys
 
 # Notes
 # Set volume: sudo amixer cset numid=1 70%
 
-pir = gpiozero.MotionSensor(pin=4, queue_len=500, sample_rate=100, threshold=0.90)
+os.system("killall -9 raspistill")
+pir = gpiozero.MotionSensor(pin=4, queue_len=100, sample_rate=100, threshold=.95)
+camera = subprocess.Popen(["raspistill", "-s", "-o", "/home/pi/halloweendalek/tmp.jpg"])
+lastmovement = datetime.datetime.now()
+silenceoriginalweight = 5
 
 responses = []
 weights = []
@@ -24,11 +28,13 @@ class response:
 
     def respond(self):
         print(self.printstatement)
+        sys.stdout.flush()
         if self.soundfile:
-            subprocess.Popen(["raspistill", "-o", "/home/pi/halloweendalek/" + str(datetime.datetime.now()).replace(" ", "_") + ".jpg"])
-            time.sleep(4.5)
             os.system("mpg123 -q " + self.soundfile)
- 
+            os.kill(camera.pid, 10)
+            time.sleep(5)
+            os.rename("/home/pi/halloweendalek/tmp.jpg", "/home/pi/halloweendalek/" + str(datetime.datetime.now()).replace(" ", "_") + ".jpg")
+            
 exterminate = response(\
     soundfile = "/home/pi/halloweendalek/s1_06_aud_03.mp3", \
     printstatement = "EXTERMINATE", \
@@ -47,7 +53,7 @@ weights.append(aghhhh.weight)
 
 silence = response(\
     printstatement = "SILENTLY BIDING MY TIME", \
-    weight = 0)
+    weight = silenceoriginalweight)
 
 responses.append(silence)
 weights.append(silence.weight)
@@ -62,15 +68,34 @@ weights.append(trick.weight)
 
 
 while True:
-    print("Waiting for motion...")
-    pir.wait_for_motion()
-    print(datetime.datetime.now())
-    reaction = random.choices(responses, weights)
-    reaction[0].respond()
-    
-    print("Sleeping...")
-    time.sleep(10)
-    print("Done sleeping.")
-    
-    print("Waiting for motion to stop...")
-    pir.wait_for_no_motion()
+    if datetime.datetime.now().hour >= 21 or datetime.datetime.now().hour < 9:
+        time.sleep(60*60)
+    else:
+        print("Waiting for motion...")
+        sys.stdout.flush()
+        pir.wait_for_motion()
+        print(datetime.datetime.now())
+        sys.stdout.flush()
+        reaction = random.choices(responses, weights)
+        reaction[0].respond()
+
+        if (datetime.datetime.now() - lastmovement).seconds < 40:
+            silence.weight += 2
+        elif (datetime.datetime.now() - lastmovement).seconds < 120:
+            silence.weight += 1
+        elif (datetime.datetime.now() - lastmovement).seconds > 600:
+            silence.weight = silenceoriginalweight
+        
+        if silence.weight > 20 * exterminate.weight:
+            silence.weight = 20 * exterminate.weight
+        
+        
+        print("Sleeping...")
+        sys.stdout.flush()
+        time.sleep(25)
+        print("Done sleeping.")
+        sys.stdout.flush()
+        
+        print("Waiting for motion to stop...")
+        sys.stdout.flush()
+        pir.wait_for_no_motion()
